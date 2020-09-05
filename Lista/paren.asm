@@ -57,11 +57,12 @@ ntimes: ; vai chamar main_routine bl vezes
 	jne ntimes
 
 	; printa @ pra marcar o fim do primeiro loop
-	mov al, '@'
-	call putc
-	call newline
+	;mov al, '@'
+	;call putc
+	;call newline
 
 	mov bl, [n]
+	mov si, ans
 
 printloop:
 	dec bl
@@ -69,7 +70,15 @@ printloop:
 	;mov al, [si]
 	;add al, 48
 
-	mov al, '*'
+	mov al, [si]
+
+	mov cl, al
+	imul ecx, 6
+
+	add al, 'S'
+	sub al, cl
+
+	inc si
 
 	call putc
 	call newline
@@ -88,8 +97,7 @@ main_routine: ; main routine vai processar uma linha
 		call getc
 
 		cmp al, 13
-
-		jne .notend ; if al = 13 then ...
+		jne .notend ; if al = RET then ...
 			call newline
 			jmp .clear
 
@@ -101,38 +109,97 @@ main_routine: ; main routine vai processar uma linha
 
 		cmp al, ')'
 		jne .closeparen ; if al = ) then ...
-			cmp sp, bp 
+
 			mov cl, 1
-			je .notempty ; if !stack.empty()
-				mov cl, 0
+			cmp bp, sp 
+			jbe .notempty ; if !stack.empty()
+
 				pop eax
+				mov ch, al
+				xor eax, eax
+
+				cmp ch, '('
+				jne .notempty
+
+				mov cl, 0
+
 			.notempty:
 			or dl, cl
 		.closeparen:
+
+		cmp al, ']'
+		jne .closecolc ; if al = ] then ...
+
+			mov cl, 1
+			cmp bp, sp 
+			jbe .notempty1 ; if !stack.empty()
+
+				pop eax
+				mov ch, al
+				xor eax, eax
+
+				cmp ch, '['
+				jne .notempty1
+
+				mov cl, 0
+
+			.notempty1:
+			or dl, cl
+		.closecolc:
+
+		cmp al, '}'
+		jne .closechav ; if al = } then ...
+
+			mov cl, 1
+			cmp bp, sp 
+			jbe .notempty2 ; if !stack.empty()
+
+				pop eax
+				mov ch, al
+				xor eax, eax
+
+				cmp ch, '{'
+				jne .notempty2
+
+				mov cl, 0
+
+			.notempty2:
+			or dl, cl
+		.closechav:
 
 		cmp al, '('
 		jne .paren ; if al = ( then ...
 			push eax
 		.paren:
 
-		jmp .read
+		cmp al, '['
+		jne .colc ; if al = [ then ...
+			push eax
+		.colc:
 
+		cmp al, '{'
+		jne .chav ; if al = { then ...
+			push eax
+		.chav:
+
+	jmp .read
 
 	;push eax
 	;push eax
-
 
 	.clear:
 	cmp sp, bp ; while(!s.empty) pop() // limpar a pilha
 	je .skip
+		mov dl, 1 ; se a pilha não está vazia, então a string está desbalanceada
 		pop eax
-		;mov al, 'A'
-		;call putc
+
+		;call putc ; debug
+
 		jmp .clear
 	.skip:
 
 	mov al, dl
-	stosd ; ans[di++] := al
+	stosb ; ans[di++] := al
 
 	ret
 
