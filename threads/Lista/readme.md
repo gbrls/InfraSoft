@@ -6,5 +6,5 @@
 A flag `-fsanitize=thread` vai testar o código em execução para alguma race condition.
 
 ## Problemas
-- [1](tree/master/threads/Lista/1)
-- [6 - Blocking Queue](tree/master/threads/Lista/6)
+- [1](1/a.c)
+- [6 - Blocking Queue](6/a.c)
