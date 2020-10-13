@@ -39,8 +39,6 @@ void read(pixel ***pixels, int *l1, int *c1, int *max1, char *cod){
         }
         else if(i == 2){
             max = atoi(str);
-        }
-        else{
             break;
         }
         i++;
@@ -67,6 +65,15 @@ void *colorToGrey(void *pixel_){
     pthread_exit(NULL);
 }
 
+void printPixels(pixel **pixels, int l, int c){
+    for(int i=0; i<l; i++){
+        for(int j=0; j<c; j++){
+            printf("[%d, %d, %d]  ", pixels[i][j].R, pixels[i][j].G, pixels[i][j].B);
+        }
+        printf("\n");
+    }
+}
+
 void thread(pixel **pixels, int l, int c){
     int num_threads = l*c;
 
@@ -82,6 +89,7 @@ void thread(pixel **pixels, int l, int c){
         }
     }
     
+
     for(int i=0; i<l; i++){
         for(int j=0; j<c; j++){
             int ret = pthread_create(&threads[i][j], NULL, colorToGrey, (void *) &pixels[i][j]);
@@ -94,15 +102,6 @@ void thread(pixel **pixels, int l, int c){
     }
     free(threads);
 
-}
-
-void printPixels(pixel **pixels, int l, int c){
-    for(int i=0; i<l; i++){
-        for(int j=0; j<c; j++){
-            printf("[%d, %d, %d]  ", pixels[i][j].R, pixels[i][j].G, pixels[i][j].B);
-        }
-        printf("\n");
-    }
 }
 
 void write(pixel **pixels, int l, int c, int max, char *cod){
@@ -130,6 +129,9 @@ int main (){
     char cod[5];
 
     read(&pixels, &l, &c, &max, cod);
+
+    printPixels(pixels, l, c);
+    printf("\n");
 
     thread(pixels, l, c);
     
