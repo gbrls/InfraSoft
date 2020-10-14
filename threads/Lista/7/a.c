@@ -93,6 +93,11 @@ void thread(pixel **pixels, int l, int c){
     for(int i=0; i<l; i++){
         for(int j=0; j<c; j++){
             int ret = pthread_create(&threads[i][j], NULL, colorToGrey, (void *) &pixels[i][j]);
+        }
+    }
+
+    for(int i=0; i<l; i++){
+        for(int j=0; j<c; j++){
             pthread_join(threads[i][j], NULL);
         }
     }
