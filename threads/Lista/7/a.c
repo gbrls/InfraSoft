@@ -149,7 +149,8 @@ int main (){
     }
     free(pixels);
 
-    pthread_exit(NULL);
+    // chamando exit(0) ao invés de pthread_exit pois com exit(0) estamos explicitamente terminando o processo.
+    exit(0); 
 
     return 0;
 }

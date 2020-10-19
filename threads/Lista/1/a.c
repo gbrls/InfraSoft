@@ -59,7 +59,7 @@ int main() {
     pthread_mutex_destroy(&mut);
 
     // Ao invés de chamar pthread_exit da main, fazemos o retorno normal
-    // que é equivalente à call exit(0). Diferente de pthread_exit, exit(0)
+    // que é equivalente a call exit(0). Diferente de pthread_exit, exit(0)
     // termina o processo, terminando todas as threads dele. Como teremos apenas 
     // uma thread no final do programa, não faz sentido chamar pthread_exit.
     return 0;
