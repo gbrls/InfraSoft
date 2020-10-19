@@ -125,6 +125,7 @@ void destroyQ(BlockingQueue* Q) {
     _destroy(Q->head);
     pthread_mutex_destroy(&Q->mut);
     pthread_cond_destroy(&Q->notEmpty);
+    pthread_cond_destroy(&Q->notFull);
     free(Q);
 }
 
