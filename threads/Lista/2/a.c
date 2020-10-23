@@ -17,6 +17,11 @@ typedef struct{
     char **s;
 } mat;
 
+typedef struct{
+    int i;
+    int num_linhas;
+} aux_;
+
 void printa_matriz(int num_linhas){
     system("clear");
     for(int i=0; i<num_linhas; i++){
@@ -24,17 +29,47 @@ void printa_matriz(int num_linhas){
     }
 }
 
-void *func(void *m){
-    mat *aux = (mat *) m;
-    int n = aux->n;
+void *func(void *k){
+    aux_ *a = (aux_ *) k;
+    int t = a->i;
+    int num_linhas = a->num_linhas;
+    mat aux;
+    char buffer[7] = {};
+    sprintf(buffer, "%d.txt", t+1);
+    FILE *arq = NULL;
+    arq = fopen(buffer, "rt");
+    if(arq == NULL){
+        exit(-1);
+    }
+
+    char str[40];
+    int j=0;
+    aux.s = NULL;
+    while(fgets(str, 40, arq) != NULL){
+        aux.s = (char **) realloc(aux.s, (j+1)*sizeof(char *));
+        aux.s[j] = (char *) malloc(40*sizeof(char));
+        strcpy(aux.s[j], str);
+        j++;
+    }
+    aux.n = j;
+
+    free(arq);
+
+    int n = aux.n;
     for(int i=0; i<n; i+=2){
-        int l = atoi(aux->s[i]);
+        int l = atoi(aux.s[i]);
         l--;
-        while(pthread_mutex_trylock(&mut[l]) != 0){;}
-        strcpy(matriz[l], aux->s[i+1]);
+        pthread_mutex_lock(&mut[l]);
+        //while(pthread_mutex_trylock(&mut[l]) != 0){;}
+        strcpy(matriz[l], aux.s[i+1]);
         pthread_mutex_unlock(&mut[l]);
     }
-    //printa_matriz(aux->num_linhas);
+    //printa_matriz(num_linhas);
+
+    for(int i=0; i<n; i++){
+        free(aux.s[i]);
+    }
+    free(aux.s);
 
     pthread_exit(NULL);
 }
@@ -44,34 +79,13 @@ void thread(int num_threads, int num_linhas){
     pthread_t *threads = NULL;
     threads = (pthread_t *) malloc(num_threads*sizeof(pthread_t));
 
-    mat *aux = NULL;
-    aux = (mat *) malloc(num_threads*sizeof(mat));
+    aux_ *index = NULL;
+    index = (aux_ *) malloc(num_threads*sizeof(aux_));
 
     for(int i=0; i<num_threads; i++){
-
-        char buffer[7] = {};
-        sprintf(buffer, "%d.txt", i+1);
-        FILE *arq = NULL;
-        arq = fopen(buffer, "rt");
-        if(arq == NULL){
-            exit(-1);
-        }
-
-        char str[40];
-        int j=0;
-        aux[i].s = NULL;
-        while(fgets(str, 40, arq) != NULL){
-            aux[i].s = (char **) realloc(aux[i].s, (j+1)*sizeof(char *));
-            aux[i].s[j] = (char *) malloc(40*sizeof(char));
-            strcpy(aux[i].s[j], str);
-            j++;
-        }
-        aux[i].n = j;
-        aux[i].num_linhas = num_linhas;
-
-        int ret = pthread_create(&threads[i], NULL, func, (void *) &aux[i]);
-
-        free(arq);
+        index[i].i = i;
+        index[i].num_linhas = num_linhas;
+        int ret = pthread_create(&threads[i], NULL, func, (void *) &index[i]);
     }
 
     for(int i=0; i<num_threads; i++){
@@ -79,15 +93,8 @@ void thread(int num_threads, int num_linhas){
     }
 
     free(threads);
-
-    for(int i=0; i<num_threads; i++){
-        for(int j=0; j<aux[i].n; j++){
-            free(aux[i].s[j]);
-        }
-        free(aux[i].s);
-    }   
-
-    free(aux);
+    free(index);
+    
 }
 
 void init(int *l, int *n){
@@ -113,6 +120,13 @@ void init(int *l, int *n){
     }
 }
 
+void free_(int num_linhas){
+    for(int i=0; i<=num_linhas; i++){
+        free(matriz[i]);
+    }
+    free(matriz);
+}
+
 
 int main() {
 
@@ -123,6 +137,8 @@ int main() {
     thread(num_threads, num_linhas);
 
     printa_matriz(num_linhas);
+
+    free_(num_linhas);
 
     exit(0);
 
