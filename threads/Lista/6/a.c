@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#define THREAD
+//#define DEBUG
 
 typedef struct elem{
    int value;
@@ -58,7 +58,7 @@ void putBlockingQueue(BlockingQueue* Q,int newValue) {
     pthread_mutex_lock(&Q->mut);
 
     if(Q->statusBuffer == Q->sizeBuffer) {
-        puts("A fila está cheia, esperando...");
+        puts("A fila está cheia, dormindo...");
         pthread_cond_wait(&Q->notFull, &Q->mut);
     }
 
@@ -70,7 +70,9 @@ void putBlockingQueue(BlockingQueue* Q,int newValue) {
     Q->statusBuffer++;
 
     if(was_empty) {
+#ifdef DEBUG
         puts("Fila estava vazia, mandando sinal");
+#endif
         pthread_cond_signal(&Q->notEmpty);
     }
     pthread_mutex_unlock(&Q->mut);
@@ -80,9 +82,11 @@ void putBlockingQueue(BlockingQueue* Q,int newValue) {
 int takeBlockingQueue(BlockingQueue* Q) {
     pthread_mutex_lock(&Q->mut);
     if(Q->head->prox == NULL) {
-        puts("Fila vazia, esperando");
+        puts("Fila vazia, dormindo...");
         pthread_cond_wait(&Q->notEmpty, &Q->mut);
+#ifdef DEBUG
         puts("Fila não está mais vazia!");
+#endif
     }
 
     bool was_full = (Q->sizeBuffer == Q->statusBuffer);
@@ -95,7 +99,9 @@ int takeBlockingQueue(BlockingQueue* Q) {
     Q->statusBuffer--;
 
     if(was_full) {
+#ifdef DEBUG
         puts("A fila estava cheia, mandando sinal");
+#endif
         pthread_cond_signal(&Q->notFull);
     }
 
@@ -196,12 +202,13 @@ void test_notFull() {
     destroyQ(q);
 }
 
-
 int main() {
 
+#ifdef DEBUG
     test_queue();
     test_notEmpty();
     test_notFull();
+#endif
 
     return 0;
 }
