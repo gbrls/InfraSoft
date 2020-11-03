@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <string.h>
 
 /* Considerações
    - n1 mod p = 0
@@ -10,8 +11,19 @@
 
 // Como o enunciado não especifica se quer input dousuŕaio, definimos pré-definidos de n1, n2, p
 #define n1 100
-#define p 1
+#define p 4
 #define n2 100//(n1/p)-1
+
+typedef struct  dummy_element{
+    char s1[n1];
+    char s2[n2];
+    int quantity_of_substrings_found;
+}element;
+
+typedef struct dummy_element_and_id{
+    element *common_element;
+    int id;
+}element_and_id;
 
 int get_string_size(char string[]){
     // retorna o tamanho da string (sem contar com o '\0')
@@ -22,24 +34,29 @@ int get_string_size(char string[]){
     return ++counter;
 }
 
-int quantidade_substring(char s1[], char s2[]){
-    // Retorna a quantidade de substrings em s1 que são iguais à s2
+void *quantidade_substring(void *argument){
+    /* Retorna a quantidade de substrings em s1 que são iguais à s2 */
+
+    // De-referenciando
+    element_and_id *elemento_com_id = (element_and_id *) argument;
+
+    // Declarações e inicializações iniciais
     int quantidade_de_substrings = 0;
-    int s1_size = get_string_size(s1); 
-    int s2_size = get_string_size(s2); 
+    int s1_size = get_string_size(elemento_com_id->common_element->s1); 
+    int s2_size = get_string_size(elemento_com_id->common_element->s2); 
     int aux_counter;
     int quantitade_de_substrings = 0;
     int substring_test_failed;
-    if(s1[0] != '\0'){
+    if(elemento_com_id->common_element->s1[0] != '\0'){
         // para cada caractere de s1 <-- IMPLEMENTAR THREADS AQUI
-        for(int i = 0; i < s1_size; i++){
+        for(int i = elemento_com_id->id; i < s1_size; i += p){
             // se o caractere é igual ao primeiro caractere de s2,
-            if(s1[i] == s2[0]){
+            if(elemento_com_id->common_element->s1[i] == elemento_com_id->common_element->s2[0]){
                 // cheque repetidamente se o próximo caractere de s1 é igual ao próximo caractere de s2 até terminar. se for tudo igual, incrementa o contador de substrings, senão, não incremente e volta para o for externo.
                 substring_test_failed = 0;
                 aux_counter = 0;
                 for(int j = i; j < s2_size+i-1; j++){
-                    if(s1[j]!=s2[aux_counter]){
+                    if(elemento_com_id->common_element->s1[j] != elemento_com_id->common_element->s2[aux_counter]){
                         substring_test_failed = 1;
                         j = s2_size+i; 
                     }
@@ -47,24 +64,50 @@ int quantidade_substring(char s1[], char s2[]){
                 }
                 // se achou substring completa (não falhou o teste), incrementa a quantidade de substrings.
                 if(substring_test_failed==0){
-                    quantidade_de_substrings++;
+                    // quantidade_de_substrings++;
+                    printf("thread_id: %d\n", elemento_com_id->id);
+                    elemento_com_id->common_element->quantity_of_substrings_found++;
                 }
             }
         }
-        printf("\n");
     }
-    else{
-        return 0;
-    }
-
-    return quantidade_de_substrings;
-
 }
 
 int main(){
-    char s1[n1] = "mateus ferreira borges soares\0";
-    char s2[n2] = "rre\0";
-    int quantidade_de_substrings = quantidade_substring(s1, s2);
-    printf("%d\n", quantidade_de_substrings);
+    // Declarações e inicializações iniciais
+        // a struct contendo as duas strings e o contador de quantidade de substrings
+    element *data = malloc(sizeof(element));
+    strcpy(data->s1, "aababaaabba\0");
+    strcpy(data->s2, "bb\0");
+    data->quantity_of_substrings_found = 0;
+        // creates all the element_and_id's and already setting its id and common_element (puts it all in one array)
+    element_and_id *element_and_id_array[p];
+            // for each thread, assigns it with an id ranging from 1 to p
+    for(int i = 0; i < p; i++){
+        element_and_id_array[i] = (element_and_id *) malloc(sizeof(element_and_id)); 
+        element_and_id_array[i]->common_element = data;
+        element_and_id_array[i]->id = i;
+    }
+        // pega o tamanho das duas strings
+    int s1_size = get_string_size(data->s1); 
+    int s2_size = get_string_size(data->s2); 
+        // array com as variáveis do tipo thread
+    pthread_t threads[p];
+
+    // Chamadas de função e administração de threads
+        // para cada variável pthread, cria uma tread rodando a função quantidade_substring()
+    for(int i = 0; i < s1_size; i++){
+        pthread_create((void *)&threads[i], NULL, quantidade_substring, (void *) element_and_id_array[i]);
+    }
+        // faz a main esperar a execução de todas as threads antes de continuar a sua própria execução
+    for(int i = 0; i < p; i++){
+        pthread_join(threads[i], NULL);
+    }
+
+    // Print do resultado final (quantas substrings iguais a s2 existem em s1)
+    printf("\nQuantidade de substrings encontradas: %d\n\n", data->quantity_of_substrings_found); // TODO: isso printa!
+
+    printf("ISSO AQUI NÃO PRINTA!!");   // TODO: isso não printa! :(
+
     return 1;
 }
