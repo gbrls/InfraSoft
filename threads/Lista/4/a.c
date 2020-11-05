@@ -4,16 +4,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-// ret é o local para onde a função vai escrever a sua saída
-typedef struct {
-    void* args;
-    int* ret;
-} fnArg;
 
-typedef void (*fPtr)(fnArg arg);
+typedef void* (*fPtr)(void* arg);
 
 typedef struct {
-    fnArg arg;
+    void* arg;
     fPtr fn;
     int id;
 } packedFn;
@@ -23,6 +18,52 @@ typedef struct elem{
    packedFn* value;
    struct elem *prox;
 }Elem;
+
+typedef struct {
+    int* arr;
+    int sz;
+    pthread_mutex_t mut;
+}Vector;
+
+void newVec(Vector* v) {
+    pthread_mutex_init(&v->mut, NULL);
+    v->arr = (int*) malloc(sizeof(int));
+}
+
+void deleteVec(Vector* v) {
+    pthread_mutex_destroy(&v->mut);
+    free(v->arr);
+}
+
+int* _pos(Vector* v, int p) {
+    if(p >= v->sz) {
+        v->arr = realloc(v->arr,sizeof(int)*(p+1));
+
+        for(int i=v->sz;i<=p;i++) {
+            v->arr[i] = -1;
+        }
+
+        v->sz = p+1;
+    }
+
+    return &v->arr[p];
+}
+int VecGet(Vector* v, int p) {
+    pthread_mutex_lock(&v->mut);
+
+    int x = *_pos(v, p);
+
+    pthread_mutex_unlock(&v->mut);
+
+    return x;
+}
+
+void VecSet(Vector* v, int p, int val) {
+    pthread_mutex_lock(&v->mut);
+    (*_pos(v, p)) = val;
+    pthread_mutex_unlock(&v->mut);
+}
+
  
 /* O buffer de espera vai ser implementado com a
  * blockingQueue da questão 6
@@ -165,45 +206,20 @@ void destroyQ(BlockingQueue* Q) {
 #define N 3
 
 typedef struct {
-    int total;
-    int atual;
-    int arr[N];
-    pthread_mutex_t mut[N];
-   pthread_cond_t conds[N]; 
-} arrMut;
+    int id;
+    pthread_t thread;
+}taggedThread;
 
-arrMut* arr;
+int total = 0;
 BlockingQueue* queue;
-int nucleos[N] = {0};
+taggedThread nucleos[N] = {0};
+
 pthread_mutex_t nucl_mut;
 pthread_cond_t nucl_cond;
 
-arrMut* newArrMut() {
-    arrMut* a = (arrMut*) malloc(sizeof(arrMut));
+pthread_cond_t nova_thread_cond;
 
-    a->atual = 0;
-    a->total = 0;
-
-    for(int i=0;i<N;i++) {
-        a->arr[i] = 5;
-    }
-
-    for(int i=0;i<N;i++) {
-        pthread_mutex_init(&a->mut[i], NULL);
-        pthread_cond_init(&a->conds[i], NULL);
-    }
-
-    return a;
-}
-
-void arrMutDestroy(arrMut* a) {
-    for(int i=0;i<N;i++) {
-        pthread_mutex_destroy(a->mut + i);
-        pthread_cond_destroy(a->conds + i);
-    }
-
-    free(a);
-}
+Vector vec;
 
 typedef struct {
     int i; // qual thread a função será executada
@@ -212,41 +228,42 @@ typedef struct {
 
 void* executarThread(void* arg) {
     _exe_arg* ea = (_exe_arg*)arg;
-    int i = ea->i;
+    int nucleo_que_esta_rodando = ea->i;
     packedFn* p = ea->p;
 
-    int arr_pos = p->id%N;
-    printf("arr_pos: %d, thread: %d, ret: %p\n",arr_pos, ea->i, ea->p->arg.ret);
+    int id_do_agendamento = p->id;
+    //printf("agendamento: %d, thread: %d, arg: %d\n", id_do_agendamento, ea->i, (int)arg);
 
-    pthread_mutex_lock(&arr->mut[arr_pos]);
+    void* ret = p->fn(p->arg);
 
-    p->fn(p->arg);
-
-    pthread_mutex_unlock(&arr->mut[arr_pos]);
+    VecSet(&vec, nucleos[nucleo_que_esta_rodando].id,(int)ret);
+    printf("Escreveu em %d %d\n",nucleos[nucleo_que_esta_rodando].id, (int) ret);
 
     pthread_mutex_lock(&nucl_mut);
-    nucleos[i] = 0;
+    nucleos[nucleo_que_esta_rodando].id = -1;
     //avisando que existem núcleos vazios
     pthread_cond_signal(&nucl_cond);
     pthread_mutex_unlock(&nucl_mut);
+
+    return ret;
 }
 
 void* despachanteFn() {
     while(1) {
         int cheio = 1;
-        pthread_t t;
         for(int i=0;i<N;i++) {
             pthread_mutex_lock(&nucl_mut);
-            int x = nucleos[i];
+            taggedThread x = nucleos[i];
             pthread_mutex_unlock(&nucl_mut);
-            if(x == 0) {
+            if(x.id == -1) {
                 //chamar
 
-                pthread_mutex_lock(&nucl_mut);
-                nucleos[i] = 1;
-                pthread_mutex_unlock(&nucl_mut);
                 packedFn* p = takeBlockingQueue(queue);
+                pthread_mutex_lock(&nucl_mut);
+                nucleos[i].id = p->id;
+                pthread_mutex_unlock(&nucl_mut);
                 printf("Taken %d from queue\n",p->id);
+
 
                 _exe_arg* args = (_exe_arg*) malloc(sizeof(_exe_arg));//{.i=i, .p=p};
                 args->i = i; // qual thread está sendo executada
@@ -254,7 +271,9 @@ void* despachanteFn() {
 
                 printf("Usando a thread %d\n",i);
 
-                pthread_create(&t, NULL, executarThread, (void*)args);
+                pthread_create(&nucleos[i].thread, NULL, executarThread, (void*)args);
+                pthread_cond_signal(&nova_thread_cond);
+
                 //free(p);
                 cheio = 0;
             }
@@ -274,15 +293,9 @@ void* despachanteFn() {
     }
 }
 
-int agendarExecucao(fPtr funexec, fnArg arg) {
-    //sleep(1);
-    //funexec(arg);
+int agendarExecucao(fPtr funexec, void* arg) {
 
-    int id = arr->total;
-    arg.ret = &arr->arr[id%N];
-
-    arr->total++;
-    arr->atual = (arr->total)%N;
+    int id = total++;
 
     packedFn* fn = (packedFn*) malloc(sizeof(packedFn));
     fn->fn = funexec;
@@ -290,53 +303,86 @@ int agendarExecucao(fPtr funexec, fnArg arg) {
     fn->id = id;
 
     printf("agendando %p\n",fn);
-    //packedFn fn = {.fn=funexec, .arg=arg};
     putBlockingQueue(queue, fn);
-    printQ(queue);
 
+    //printQ(queue);
     
     return id;
 }
 
 int pegarResultadoExecucao(int id) {
-    pthread_mutex_lock(&arr->mut[id%N]);
-    int ret = (arr->arr[id%N]);
-    pthread_mutex_unlock(&arr->mut[id%N]);
 
-    return ret;
+    if(VecGet(&vec, id) != -1) {
+        printf("thread já terminou! %d\n", id);
+        return VecGet(&vec, id);
+    }
+
+    for(int i=0;i<N;i++) {
+        pthread_mutex_lock(&nucl_mut);
+        taggedThread x = nucleos[i];
+        pthread_mutex_unlock(&nucl_mut);
+        if(x.id == id) {
+            void* ret;
+            printf("Esperando thread %d retornar\n",x.id);
+            pthread_join(x.thread, &ret);
+            printf("Retornou %d\n", (int) ret);
+            return (int)ret;
+        }
+    }
+
+    printf("A func %d ainda não foi executada, esperando\n",id);
+
+    pthread_mutex_lock(&nucl_mut);
+    pthread_cond_wait(&nova_thread_cond, &nucl_mut);
+    pthread_mutex_unlock(&nucl_mut);
+
+    puts("Uma nova função começou wowow!");
+
+    return pegarResultadoExecucao(id);
 }
 
-void testFun(fnArg arg) {
-    printf("Hello there %d!\n", *arg.ret);
-    *arg.ret += 1;
-    sleep(rand()%10);
+void* testFun(void* arg) {
+    printf("Hello there %d!\n", (int)arg);
+    //sleep(rand()%10);
+    //sleep(2);
     puts("END");
+
+    return (void*) 270;
 }
 
-void testFun2(fnArg arg) {
+void* testFun2(void* arg) {
     printf("General kenobi\n");
     //*arg.ret = 7;
-    sleep(10);
+    sleep(2);
     puts("END");
+
+    return (void*) 1234;
 }
 
 int main() {
 
-    arr = newArrMut();
+    for(int i=0;i<N;i++) {
+        nucleos[i].id = -1;
+    }
+
+    newVec(&vec);
     queue = newBlockingQueue(N);
     pthread_mutex_init(&nucl_mut, NULL);
     pthread_cond_init(&nucl_cond, NULL);
+    pthread_cond_init(&nova_thread_cond, NULL);
 
     pthread_t despachante;
     pthread_create(&despachante, NULL, despachanteFn, NULL);
 
-    fnArg arg = {.args=NULL, .ret=NULL};
+    void* arg = (void*) 42;
     //packedFn fn = {.fn=testFun,.arg=arg};
     //packedFn fn2 = {.fn=testFun2,.arg=arg};
 
     //agendarExecucao(testFun, arg);
     //agendarExecucao(testFun2, arg);
     //agendarExecucao(testFun, arg);
+
+    // id -> nucl(id)
 
     while(1) {
         int n;
@@ -353,6 +399,7 @@ int main() {
             id = agendarExecucao(testFun2, arg);
         }
 
+        //sleep(1);
         printf("Resultado de %d = %d\n",id,pegarResultadoExecucao(id));
     }
 
@@ -370,10 +417,11 @@ int main() {
 
     pthread_join(despachante, NULL);
 
-    arrMutDestroy(arr);
     destroyQ(queue);
     pthread_mutex_destroy(&nucl_mut);
     pthread_cond_destroy(&nucl_cond);
+    pthread_cond_destroy(&nova_thread_cond);
+    deleteVec(&vec);
 
     return 0;
 }
