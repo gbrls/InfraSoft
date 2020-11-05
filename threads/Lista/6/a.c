@@ -11,6 +11,7 @@ typedef struct elem{
    struct elem *prox;
 }Elem;
  
+ // a fila é implementada como uma lista encadeada com um nó sentinela
 typedef struct blockingQueue{
    unsigned int sizeBuffer; // tamanho máximo
    unsigned int statusBuffer; // tamanho atual
@@ -51,7 +52,6 @@ BlockingQueue* newBlockingQueue(unsigned int SizeBuffer) {
 // [NULL|]->[|]->[|]->NULL
 // ^ Head/Sent   ^ Tail
 
-//TODO: Implementar o que foi pedido
 void putBlockingQueue(BlockingQueue* Q,int newValue) {
     Elem* e = newEl(newValue);
 
@@ -73,12 +73,12 @@ void putBlockingQueue(BlockingQueue* Q,int newValue) {
 #ifdef DEBUG
         puts("Fila estava vazia, mandando sinal");
 #endif
+        // mandar um sinal avisando que a fila não está mais vazia
         pthread_cond_signal(&Q->notEmpty);
     }
     pthread_mutex_unlock(&Q->mut);
 }
 
-//TODO: Implementar o que foi pedido
 int takeBlockingQueue(BlockingQueue* Q) {
     pthread_mutex_lock(&Q->mut);
     if(Q->head->prox == NULL) {
@@ -94,6 +94,9 @@ int takeBlockingQueue(BlockingQueue* Q) {
     Elem* n = Q->head->prox->prox;
     int v = Q->head->prox->value;
 
+    if(Q->head->prox == Q->last) {
+        Q->last = Q->head;
+    }
     free(Q->head->prox);
     Q->head->prox = n;
     Q->statusBuffer--;
@@ -102,6 +105,7 @@ int takeBlockingQueue(BlockingQueue* Q) {
 #ifdef DEBUG
         puts("A fila estava cheia, mandando sinal");
 #endif
+        // mandar um sinal avisando que a fila não está mais cheia.
         pthread_cond_signal(&Q->notFull);
     }
 
@@ -110,6 +114,7 @@ int takeBlockingQueue(BlockingQueue* Q) {
     return v;
 }
 
+// função de debug para printar os elementos da fila
 void printQ(BlockingQueue* Q) {
     Elem* e = Q->head;
     while(e->prox != NULL) {
@@ -126,7 +131,7 @@ void _destroy(Elem* e) {
     free(e);
 }
 
-// wrapper around _destroy
+// wrapper de _destroy
 void destroyQ(BlockingQueue* Q) {
     _destroy(Q->head);
     pthread_mutex_destroy(&Q->mut);

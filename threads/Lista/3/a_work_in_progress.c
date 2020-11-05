@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
+#include <assert.h>
 
 /* Considerações
    - n1 mod p = 0
@@ -17,7 +18,7 @@
 typedef struct  dummy_element{
     char s1[n1];
     char s2[n2];
-    int quantity_of_substrings_found;
+    // int quantity_of_substrings_found;
 }element;
 
 typedef struct dummy_element_and_id{
@@ -36,6 +37,9 @@ int get_string_size(char string[]){
 
 void *quantidade_substring(void *argument){
     /* Retorna a quantidade de substrings em s1 que são iguais à s2 */
+
+    // variável de retorno
+    int retorno = 0;
 
     // De-referenciando
     element_and_id *elemento_com_id = (element_and_id *) argument;
@@ -66,48 +70,75 @@ void *quantidade_substring(void *argument){
                 if(substring_test_failed==0){
                     // quantidade_de_substrings++;
                     printf("thread_id: %d\n", elemento_com_id->id);
-                    elemento_com_id->common_element->quantity_of_substrings_found++;
+                    // elemento_com_id->common_element->quantity_of_substrings_found++;
+                    // return 1;
+                    retorno += 1;
                 }
             }
         }
     }
+    return (void*)retorno;
 }
 
 int main(){
     // Declarações e inicializações iniciais
         // a struct contendo as duas strings e o contador de quantidade de substrings
     element *data = malloc(sizeof(element));
-    strcpy(data->s1, "aababaaabba\0");
-    strcpy(data->s2, "bb\0");
-    data->quantity_of_substrings_found = 0;
+    strcpy(data->s1, "aaaabaaabaa\0");
+    strcpy(data->s2, "aaab\0");
+    // data->quantity_of_substrings_found = malloc(sizeof(int));
         // creates all the element_and_id's and already setting its id and common_element (puts it all in one array)
     element_and_id *element_and_id_array[p];
             // for each thread, assigns it with an id ranging from 1 to p
+            
+    puts("Alocando element and id");
+    fflush(stdout);
     for(int i = 0; i < p; i++){
+        //quantidade_final += *((int *)(*array_of_returns));
         element_and_id_array[i] = (element_and_id *) malloc(sizeof(element_and_id)); 
         element_and_id_array[i]->common_element = data;
         element_and_id_array[i]->id = i;
     }
-        // pega o tamanho das duas strings
+
+    puts("element and id alocados");
+    fflush(stdout);
+
+    // pega o tamanho das duas strings
     int s1_size = get_string_size(data->s1); 
     int s2_size = get_string_size(data->s2); 
         // array com as variáveis do tipo thread
     pthread_t threads[p];
 
     // Chamadas de função e administração de threads
-        // para cada variável pthread, cria uma tread rodando a função quantidade_substring()
-    for(int i = 0; i < s1_size; i++){
+    // para cada variável pthread, cria uma tread rodando a função quantidade_substring()
+    for(int i = 0; i < p; i++){
         pthread_create((void *)&threads[i], NULL, quantidade_substring, (void *) element_and_id_array[i]);
     }
+
+    puts("Alocado tudo");
+    fflush(stdout);
         // faz a main esperar a execução de todas as threads antes de continuar a sua própria execução
+    void* array_of_returns[p];
     for(int i = 0; i < p; i++){
-        pthread_join(threads[i], NULL);
+        pthread_join(threads[i], &array_of_returns[i]);
+    }
+
+    int quantidade_final = 0;
+    for(int i = 0; i < p; i++){
+        //quantidade_final += *((int *)(*array_of_returns));
+        printf("%d%c", (int)array_of_returns[i], i==p-1?'\n':' ');
+        quantidade_final += (int)array_of_returns[i];
     }
 
     // Print do resultado final (quantas substrings iguais a s2 existem em s1)
-    printf("\nQuantidade de substrings encontradas: %d\n\n", data->quantity_of_substrings_found); // TODO: isso printa!
+    printf("\nQuantidade de substrings encontradas: %d\n\n", quantidade_final); // TODO: isso printa!
 
-    printf("ISSO AQUI NÃO PRINTA!!");   // TODO: isso não printa! :(
+
+    for(int i = 0; i < p; i++){
+        free(element_and_id_array[i]);
+    }
+
+    free(data);
 
     return 1;
 }
