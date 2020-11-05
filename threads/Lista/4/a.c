@@ -189,8 +189,8 @@ arrMut* newArrMut() {
     }
 
     for(int i=0;i<N;i++) {
-        pthread_mutex_init(a->mut + i, NULL);
-        pthread_cond_init(a->conds + i, NULL);
+        pthread_mutex_init(&a->mut[i], NULL);
+        pthread_cond_init(&a->conds[i], NULL);
     }
 
     return a;
@@ -215,8 +215,9 @@ void* executarThread(void* arg) {
     int i = ea->i;
     packedFn* p = ea->p;
 
-    int arr_pos = p->id;
-    //printf("arr_pos: %d, thread: %d, ret: %p\n",arr_pos, ea->i, ea->p->arg.ret);
+    int arr_pos = p->id%N;
+    printf("arr_pos: %d, thread: %d, ret: %p\n",arr_pos, ea->i, ea->p->arg.ret);
+
     pthread_mutex_lock(&arr->mut[arr_pos]);
 
     p->fn(p->arg);
@@ -261,9 +262,11 @@ void* despachanteFn() {
 
         if(cheio) {
             // travou o mutex
+            puts("Núcleos cheios, dormindo");
             pthread_mutex_lock(&nucl_mut);
             // libera, volta e trava
             pthread_cond_wait(&nucl_cond, &nucl_mut);
+            puts("Núcles livres, acordando");
             // libera
             pthread_mutex_unlock(&nucl_mut);
         }
@@ -328,12 +331,12 @@ int main() {
     pthread_create(&despachante, NULL, despachanteFn, NULL);
 
     fnArg arg = {.args=NULL, .ret=NULL};
-    packedFn fn = {.fn=testFun,.arg=arg};
-    packedFn fn2 = {.fn=testFun2,.arg=arg};
+    //packedFn fn = {.fn=testFun,.arg=arg};
+    //packedFn fn2 = {.fn=testFun2,.arg=arg};
 
-    agendarExecucao(testFun, arg);
-    agendarExecucao(testFun2, arg);
-    agendarExecucao(testFun, arg);
+    //agendarExecucao(testFun, arg);
+    //agendarExecucao(testFun2, arg);
+    //agendarExecucao(testFun, arg);
 
     while(1) {
         int n;
@@ -351,7 +354,6 @@ int main() {
         }
 
         printf("Resultado de %d = %d\n",id,pegarResultadoExecucao(id));
-
     }
 
     //pegarResultadoExecucao(0);
