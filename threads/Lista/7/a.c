@@ -3,15 +3,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-
+//Struct pra representar cada pixel 
 typedef struct{
     int R, G, B;
 }pixel;
 
+
+// faz a leitura do arquivo .ppm e salva na matriz de pixels
 void read(pixel ***pixels, int *l1, int *c1, int *max1, char *cod){
     
     FILE *arq = NULL;
-    arq = fopen("in.txt", "rt");
+    //Abrindo o arquivo para leitura
+    arq = fopen("in.ppm", "rt");
     if(arq == NULL){
         exit(0);
     }
@@ -19,13 +22,14 @@ void read(pixel ***pixels, int *l1, int *c1, int *max1, char *cod){
     char str[20];
     int l, c, max, i = 0;
 
-    while(fgets(str, 15, arq) != NULL){
-        if(i == 0){
+    //O while faz a leitura do codigo, das dimensoes da matriz e do valor limite de cada elemento do pixel
+    while(fgets(str, 15, arq) != NULL){ // a cada iteracao a linha do arquivo vai estar salva em str
+        if(i == 0){ // primeira iteracao recebe o codigo
             strcpy(cod, str);
         }
-        else if(i == 1){
-            c = str[0]-'0';
-            l = str[2]-'0';
+        else if(i == 1){ // na segunda recebe as dimensoes (considerei <10) e aloca a matriz 
+            c = str[0]-'0'; // char -> int (colunas)
+            l = str[2]-'0'; // char -> int (linhas)
             *pixels = (pixel **) malloc(l*sizeof(pixel *));
             if(*pixels == NULL){
                 exit(-1);
@@ -37,13 +41,14 @@ void read(pixel ***pixels, int *l1, int *c1, int *max1, char *cod){
                 }
             }
         }
-        else if(i == 2){
+        else if(i == 2){ // faz a leitura do valor limite
             max = atoi(str);
             break;
         }
         i++;
     }
-    for(int i=0; i<l; i++){
+    //Agora lemos os pixels em si e salvamos na matriz
+    for(int i=0; i<l; i++){ 
         for(int j=0; j<c; j++){
             int R, G, B;
             fscanf(arq, "%d %d %d", &R, &G, &B);
@@ -58,13 +63,15 @@ void read(pixel ***pixels, int *l1, int *c1, int *max1, char *cod){
     fclose(arq);
 }
 
+//a funcao recebe um ponteiro do tipo pixel que aponta para uma das posicoes de nossa matriz
 void *colorToGrey(void *pixel_){
     pixel *p = (pixel *) pixel_;
-    int C = (p->R)*0.3+(p->G)*0.59+(p->B)*0.11;
-    p->R = C; p->G = C; p->B = C;
+    int C = (p->R)*0.3+(p->G)*0.59+(p->B)*0.11; //Faz a transposição para tons de cinza
+    p->R = C; p->G = C; p->B = C; // atualiza o pixel
     pthread_exit(NULL);
 }
 
+// funcao para printar a matriz de pixels
 void printPixels(pixel **pixels, int l, int c){
     for(int i=0; i<l; i++){
         for(int j=0; j<c; j++){
@@ -75,8 +82,11 @@ void printPixels(pixel **pixels, int l, int c){
 }
 
 void thread(pixel **pixels, int l, int c){
+    // como vamos criar uma thread para processar cada pixel, a quantidade total de thread vai ser o tamanho da matriz
     int num_threads = l*c;
 
+    //Para facilitar o entendimento, em vez de criar um vetor de threads, criamos uma matriz onde cada thread na matriz será responsavel pelo pixel
+    //correspondente na matriz de pixels
     pthread_t **threads = NULL;
     threads = (pthread_t **) malloc(l*sizeof(pthread_t *));
     if(threads == NULL){
@@ -92,12 +102,14 @@ void thread(pixel **pixels, int l, int c){
 
     for(int i=0; i<l; i++){
         for(int j=0; j<c; j++){
-            int ret = pthread_create(&threads[i][j], NULL, colorToGrey, (void *) &pixels[i][j]);
+            // criamos a thread e passamos para ela o pixel e a funcao colorToGrey que o processará
+            int ret = pthread_create(&threads[i][j], NULL, colorToGrey, (void *) &pixels[i][j]); 
         }
     }
 
     for(int i=0; i<l; i++){
         for(int j=0; j<c; j++){
+            //join nas threads
             pthread_join(threads[i][j], NULL);
         }
     }
@@ -110,17 +122,19 @@ void thread(pixel **pixels, int l, int c){
 }
 
 void write(pixel **pixels, int l, int c, int max, char *cod){
+
+    //abre o arquivo de saida
     FILE *arq = NULL;
-    arq = fopen("out.txt", "wt");
+    arq = fopen("out.ppm", "wt");
     if(arq == NULL){
         exit(-3);
     }
-    fprintf(arq, "%s", cod);
-    fprintf(arq, "%d %d\n", c, l);
-    fprintf(arq, "%d\n", max);
+    fprintf(arq, "%s", cod); //codigo
+    fprintf(arq, "%d %d\n", c, l);// colunas e linhas
+    fprintf(arq, "%d\n", max);// valor limite
     for(int i=0; i<l; i++){
         for(int j=0; j<c; j++){
-            fprintf(arq, "%d %d %d\n", pixels[i][j].R, pixels[i][j].G, pixels[i][j].B);
+            fprintf(arq, "%d %d %d\n", pixels[i][j].R, pixels[i][j].G, pixels[i][j].B); // printa cada pixel RGB
         }
     }
     fclose(arq);
@@ -133,15 +147,18 @@ int main (){
     int l, c, max;
     char cod[5];
 
+    //leitura do arquivo
     read(&pixels, &l, &c, &max, cod);
 
     printPixels(pixels, l, c);
     printf("\n");
 
+    //Chama as threads e processa o arquivo lido
     thread(pixels, l, c);
     
     printPixels(pixels, l, c);
 
+    //Escreve o resultado obtido no arquivo out.ppm
     write(pixels, l, c, max, cod);
     
     for(int i=0; i<l; i++){
